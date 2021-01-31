@@ -84,15 +84,17 @@ static void process_cmd(XUsbPs *usb) {
     }
 
     if (rb.available() == 0) {
-      uint8_t buffer[512];
+      uint8_t buffer[512] ALIGNMENT_CACHELINE;
       while (resp.available() != 0) {
         // TODO: better API to not have to copy
         const uint32_t available = resp.available();
         const size_t frameSize = std::min<size_t>(available, sizeof(buffer));
         resp.read(buffer, frameSize);
-        if (available == frameSize)
-          XUsbPs_EpBufferSend(usb, 1, buffer, frameSize);
-        else
+        if (available == frameSize) {
+          auto status = XUsbPs_EpBufferSend(usb, 1, buffer, frameSize);
+          if (status != XST_SUCCESS)
+            xil_printf("send error: %d", status);
+        } else
           XUsbPs_EpBufferSendWithZLT(usb, 1, buffer, frameSize);
       }
     }

@@ -131,9 +131,9 @@ int xusbps_spinaltap_init(XUsbPs *usb, uint16_t usbDeviceId, uint16_t usbIrq,
   if (status != XST_SUCCESS)
     goto cleanup;
 
+  // TODO check return values
   XUsbPs_EpSetHandler(usb, 0, XUSBPS_EP_DIRECTION_OUT,
-                      xusb_spinaltap_ep0_irq_handler,
-                      usb); // TODO check return values
+                      xusb_spinaltap_ep0_irq_handler, usb);
   XUsbPs_EpSetHandler(usb, 1, XUSBPS_EP_DIRECTION_IN,
                       xusb_spinaltap_ep1_irq_handler, usb);
   XUsbPs_EpSetHandler(usb, 2, XUSBPS_EP_DIRECTION_OUT,
