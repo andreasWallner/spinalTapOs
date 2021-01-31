@@ -563,7 +563,6 @@ void xusb_spinaltap_ep2_irq_handler(void *callbackRef, uint8_t endpoint,
     uint32_t invalidateLength = ENSURE_ALIGNED(bufferLength);
     Xil_DCacheInvalidateRange((intptr_t)buffer, invalidateLength);
 
-    xil_printf("pushing %08x %08x", buffer, handle);
     rb.write(buffer, bufferLength);
     XUsbPs_EpBufferRelease(handle);
     break;

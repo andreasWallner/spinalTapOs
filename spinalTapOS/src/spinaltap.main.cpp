@@ -31,7 +31,6 @@ static void readFromUsb(uint8_t *buffer, uint32_t len) {
     const uint32_t fromCurrent = std::min<size_t>(len, rb.available());
     if (fromCurrent == 0)
       continue;
-
     rb.read(buffer, fromCurrent);
     buffer += fromCurrent;
     len -= fromCurrent;
@@ -50,6 +49,7 @@ static const uintptr_t baseAddress = 0x43c00000UL;
 static void process_write(uint8_t source) {
   uint16_t address = readFromUsb<uint16_t>();
   uint32_t value = readFromUsb<uint16_t>();
+  xil_printf("writing @%04x=%x\r\n", (uint32_t)address, value);
   *(uint32_t *)(baseAddress + address) = value;
   resp.write(source);
   resp.write(0);
@@ -58,6 +58,7 @@ static void process_write(uint8_t source) {
 static void process_read(uint8_t source) {
   uint16_t address = readFromUsb<uint16_t>();
   uint32_t value = *(uint32_t *)(baseAddress + address);
+  xil_printf("reading @%04x=%x\r\n", (uint32_t)address, value);
   resp.write(source);
   resp.write(0);
   resp.write((uint8_t *)&value, sizeof(value));
@@ -91,11 +92,19 @@ static void process_cmd(XUsbPs *usb) {
         const size_t frameSize = std::min<size_t>(available, sizeof(buffer));
         resp.read(buffer, frameSize);
         if (available == frameSize) {
-          auto status = XUsbPs_EpBufferSend(usb, 1, buffer, frameSize);
-          if (status != XST_SUCCESS)
-            xil_printf("send error: %d", status);
+          xil_printf("tx\r\n");
+          if (auto status = XUsbPs_EpBufferSend(usb, 1, buffer, frameSize);
+              status != XST_SUCCESS) {
+            xil_printf("send error: %d\n\r", status);
+            return;
+          }
         } else
-          XUsbPs_EpBufferSendWithZLT(usb, 1, buffer, frameSize);
+          xil_printf("tx zlt\r\n");
+        if (auto status = XUsbPs_EpBufferSendWithZLT(usb, 1, buffer, frameSize);
+            status != XST_SUCCESS) {
+          xil_printf("send error: %d\n\r", status);
+          return;
+        }
       }
     }
   }
@@ -111,14 +120,12 @@ struct pwm_t {
 
 int main(void) {
   init_platform();
-
   PWM->divider = 1000;
   PWM->width1 = 1;
   PWM->width2 = 128;
   PWM->width3 = 255;
 
-  print("Hello World\n\r");
-  print("Successfully ran Hello World application\n\r");
+  print("Initializing\n\r");
 
   XScuGic intc;
   int status = setup_interrupts(&intc);
@@ -145,9 +152,7 @@ int main(void) {
     exit(1);
   }
 
-  while (1) {
-    process_cmd(&usb);
-  }
+  process_cmd(&usb);
 
   cleanup_platform();
   return 0;
