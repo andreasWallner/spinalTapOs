@@ -10,6 +10,7 @@
 #include "usb/descriptors.hpp"
 #include "usb/device.hpp"
 #include "xil_cache.h"
+#include "debug.hpp"
 
 // TODO replace
 #define be2le(val) (u32)(val)
@@ -134,8 +135,8 @@ int xusbps_spinaltap_init(XUsbPs *usb, uint16_t usbDeviceId, uint16_t usbIrq,
   // TODO check return values
   XUsbPs_EpSetHandler(usb, 0, XUSBPS_EP_DIRECTION_OUT,
                       xusb_spinaltap_ep0_irq_handler, usb);
-  XUsbPs_EpSetHandler(usb, 1, XUSBPS_EP_DIRECTION_IN,
-                      xusb_spinaltap_ep1_irq_handler, usb);
+  //XUsbPs_EpSetHandler(usb, 1, XUSBPS_EP_DIRECTION_IN,
+  //                    xusb_spinaltap_ep1_irq_handler, usb);
   XUsbPs_EpSetHandler(usb, 2, XUSBPS_EP_DIRECTION_OUT,
                       xusb_spinaltap_ep2_irq_handler, usb);
   XUsbPs_EpSetHandler(usb, 3, XUSBPS_EP_DIRECTION_IN,
@@ -514,14 +515,6 @@ void xusb_spinaltap_ep0_irq_handler(void *callbackRef, uint8_t endpoint,
   default:
     break;
   }
-}
-
-void dump_buffer(u8 *buffer, u32 length) {
-  xil_printf("0x%04X: ", (int)buffer);
-  while (length--) {
-    xil_printf("%02X ", *buffer++);
-  }
-  xil_printf("\r\n");
 }
 
 uint32_t xusb_spinaltap_handle_bulk_request(XUsbPs *usb, uint8_t endpoint,

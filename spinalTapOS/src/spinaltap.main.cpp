@@ -3,6 +3,7 @@
 #include "xscugic.h"
 #include "xusbps.h"
 
+#include "debug.hpp"
 #include "xil_printf.h"
 #include "xusb_spinaltap.hpp"
 #include <stdio.h>
@@ -48,7 +49,7 @@ template <typename T> static T readFromUsb() {
 static const uintptr_t baseAddress = 0x43c00000UL;
 static void process_write(uint8_t source) {
   uint16_t address = readFromUsb<uint16_t>();
-  uint32_t value = readFromUsb<uint16_t>();
+  uint32_t value = readFromUsb<uint32_t>();
   xil_printf("writing @%04x=%x\r\n", (uint32_t)address, value);
   *(uint32_t *)(baseAddress + address) = value;
   resp.write(source);
@@ -91,15 +92,9 @@ static void process_cmd(XUsbPs *usb) {
         const uint32_t available = resp.available();
         const size_t frameSize = std::min<size_t>(available, sizeof(buffer));
         resp.read(buffer, frameSize);
-        if (available == frameSize) {
-          xil_printf("tx\r\n");
-          if (auto status = XUsbPs_EpBufferSend(usb, 1, buffer, frameSize);
-              status != XST_SUCCESS) {
-            xil_printf("send error: %d\n\r", status);
-            return;
-          }
-        } else
-          xil_printf("tx zlt\r\n");
+        xil_printf("resp: ");
+        dump_buffer(buffer, frameSize);
+        xil_printf("tx zlt\r\n");
         if (auto status = XUsbPs_EpBufferSendWithZLT(usb, 1, buffer, frameSize);
             status != XST_SUCCESS) {
           xil_printf("send error: %d\n\r", status);
