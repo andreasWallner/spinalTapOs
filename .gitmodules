@@ -1,0 +1,3 @@
+[submodule "spinalTapOS/external/Catch2"]
+	path = spinalTapOS/external/Catch2
+	url = http://github.com/catchorg/Catch2.git

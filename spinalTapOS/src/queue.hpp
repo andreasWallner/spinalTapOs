@@ -8,10 +8,12 @@ template <typename T> constexpr bool is_two_to_n(T x) {
 
 // TODO check against type trait for primitive type (such that memcpy is ok)
 template <typename T, int size> class fixed_ringbuffer {
-  // TODO typical typedefs
-  //static_assert(is_two_to_n(size), "ringbuffer size must be 2**n");
-
 public:
+  using value_type = T;
+  static constexpr size_t capacity = size - 1;
+  // TODO typical typedefs
+  // static_assert(is_two_to_n(size), "ringbuffer size must be 2**n");
+
   fixed_ringbuffer() : read_(0), write_(0) {}
   fixed_ringbuffer(const fixed_ringbuffer &) = delete;
   fixed_ringbuffer(fixed_ringbuffer &&) = delete; // allow?
@@ -19,7 +21,10 @@ public:
   fixed_ringbuffer &operator=(fixed_ringbuffer &&) = delete;
 
   // TODO return value?
-  void read(T data[], uint32_t len) {
+  bool read(T data[], uint32_t len) noexcept {
+    if (available() < len)
+      return false;
+
     const uint32_t read = read_;
     if (read + len < size) {
       memcpy(data, buffer_ + read, len * sizeof(T));
@@ -31,16 +36,24 @@ public:
       memcpy(data + trailing, buffer_, leading * sizeof(T));
       read_ = leading;
     }
+    return true;
   }
 
-  void read(T &data) { read(&data, 1); }
-  T read() {
+  template <std::size_t S> bool read(T (&data)[S]) noexcept {
+    return read(data, S);
+  }
+
+  bool read(T &data) noexcept { return read(&data, 1); }
+  T read() noexcept {
     T val;
     read(&val, 1);
     return val;
   }
 
-  void write(T data[], uint32_t len) {
+  bool write(const T data[], uint32_t len) noexcept {
+    if (free() < len)
+      return false;
+
     const uint32_t write = write_;
     if (write + len < size) {
       memcpy(buffer_ + write, data, len * sizeof(T));
@@ -52,23 +65,30 @@ public:
       memcpy(buffer_, data + trailing, leading * sizeof(T));
       write_ = leading;
     }
+
+    return true;
   }
 
-  void write(T data) { // TODO better version, + one for rvalue ref
-    write(&data, 1);
+  template <std::size_t S> bool write(const T (&data)[S]) noexcept {
+    return write(data, S);
   }
 
-  size_t free() const {
+  bool
+  write(const T data) noexcept { // TODO better version, + one for rvalue ref
+    return write(&data, 1);
+  }
+
+  size_t free() const noexcept {
     if (read_ > write_)
       return read_ - write_ - 1;
     else
-      return read_ + (size - write_);
+      return read_ + (capacity - write_);
   }
-  size_t available() const {
+  size_t available() const noexcept {
     if (write_ >= read_)
       return write_ - read_;
     else
-      return write_ + (size - read_) + 1;
+      return write_ + (size - read_);
   }
 
 private:
