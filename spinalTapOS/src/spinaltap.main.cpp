@@ -1,13 +1,12 @@
-#include "platform.h"
-
-#include "xscugic.h"
-#include "xusbps.h"
-
-#include "debug.hpp"
-#include "xil_printf.h"
-#include "xusb_spinaltap.hpp"
 #include <stdio.h>
 #include <stdlib.h>
+
+#include "debug.hpp"
+#include "platform.h"
+#include "xil_printf.h"
+#include "xscugic.h"
+#include "xusb_spinaltap.hpp"
+#include "xusbps.h"
 
 static int setup_interrupts(XScuGic *intc) {
   XScuGic_Config *intc_config =
@@ -46,10 +45,22 @@ template <typename T> static T readFromUsb() {
   return val;
 }
 
+[[nodiscard]] constexpr bool valid_address(uint16_t address) noexcept {
+  return (address & 3) == 0;
+}
+
 static const uintptr_t baseAddress = 0x43c00000UL;
 static void process_write(uint8_t source) {
   uint16_t address = readFromUsb<uint16_t>();
   uint32_t value = readFromUsb<uint32_t>();
+
+  if (!valid_address(address)) {
+    xil_printf("invalid write address %04x", (uint32_t)address);
+    resp.write(source);
+    resp.write(1);
+    return;
+  }
+
   xil_printf("writing @%04x=%x\r\n", (uint32_t)address, value);
   *(uint32_t *)(baseAddress + address) = value;
   resp.write(source);
@@ -59,31 +70,71 @@ static void process_write(uint8_t source) {
 static void process_read(uint8_t source) {
   uint16_t address = readFromUsb<uint16_t>();
   uint32_t value = *(uint32_t *)(baseAddress + address);
+  // TODO move read after check, adapt library accordingly
+  if (!valid_address(address)) {
+    xil_printf("invalid read address %04x", (uint32_t)address);
+    resp.write(source);
+    resp.write(1);
+    return;
+  }
+
   xil_printf("reading @%04x=%x\r\n", (uint32_t)address, value);
   resp.write(source);
   resp.write(0);
   resp.write((uint8_t *)&value, sizeof(value));
 }
 
-enum class cmd : uint8_t { write = 0x01, read = 0x02 };
+static void process_write_stream_8(uint8_t source) {
+  uint16_t address = readFromUsb<uint16_t>();
+  uint16_t size = readFromUsb<uint16_t>();
 
+  xil_printf("writing @%04x=xx (%d)\r\n", (uint32_t)address, (uint32_t)size);
+
+  while (size--) {
+    uint8_t value = readFromUsb<uint8_t>();
+    *(uint32_t *)(baseAddress + address) = value;
+  }
+  resp.write(source);
+  resp.write(0);
+}
+
+static void process_read_stream_8(uint8_t source) {
+  uint16_t address = readFromUsb<uint16_t>();
+  uint16_t size = readFromUsb<uint16_t>();
+
+  xil_printf("reading @%04x=xx (%d)\r\n");
+
+  resp.write(source);
+  resp.write(0);
+  while(size--) {
+	  uint32_t v = *(uint32_t *)(baseAddress + address);
+	  resp.write((uint8_t)v);
+  }
+}
+
+enum class cmd : uint8_t {
+  write = 0x01,
+  read = 0x02,
+  write_stream_8 = 0x03,
+  read_stream_8 = 0x04
+};
+#include <array>
 static void process_cmd(XUsbPs *usb) {
+  using func = void (*)(uint8_t);
+  std::array<func, 4> f = {process_write, process_read, process_write_stream_8,
+                           process_read_stream_8};
   while (1) {
     struct header_t {
       uint8_t source;
       uint8_t cmd;
     } __attribute__((packed));
     const header_t header = readFromUsb<header_t>();
-    switch (static_cast<cmd>(header.cmd)) {
-    case cmd::write:
-      process_write(header.source);
-      break;
-    case cmd::read:
-      process_read(header.source);
-      break;
-    default:
-      break;
-    }
+
+    uint8_t idx = header.cmd - 1;
+    if (idx < f.size() && f[idx] != nullptr)
+      f[idx](header.source);
+    else
+      xil_printf("invalid cmd");
 
     if (rb.available() == 0) {
       uint8_t buffer[512] ALIGNMENT_CACHELINE;
