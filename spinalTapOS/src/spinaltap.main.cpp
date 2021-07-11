@@ -105,20 +105,16 @@ static void process_cmd(XUsbPs *usb) {
   }
 }
 
-struct pwm_t {
-  uint32_t divider;
-  uint32_t width1;
-  uint32_t width2;
-  uint32_t width3;
-};
-#define PWM ((pwm_t *)0x43c00000UL)
+#include "pwm.h"
 
 int main(void) {
   init_platform();
-  PWM->divider = 1000;
-  PWM->width1 = 1;
-  PWM->width2 = 128;
-  PWM->width3 = 255;
+  PWM->prescaler = 1000;
+  PWM->max = 255;
+  PWM->ctrl = PWM_CTRL_RUN;
+  PWM->level[0] = 1;
+  PWM->level[1] = 128;
+  PWM->level[2] = 255;
 
   print("Initializing\n\r");
 
