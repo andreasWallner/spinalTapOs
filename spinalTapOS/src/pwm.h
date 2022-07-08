@@ -10,7 +10,7 @@ struct pwm_reg_t {
 	uint32_t level[3];
 };
 
-#define PWM ((struct pwm_reg_t *)0x43c00000)
+#define PWM ((struct pwm_reg_t *)0x43c00100)
 
 #define PWM_CTRL_RUN UINT32_C(1)
 
