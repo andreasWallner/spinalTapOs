@@ -102,7 +102,7 @@ static void process_read_stream_8(uint8_t source) {
   uint16_t address = readFromUsb<uint16_t>();
   uint16_t size = readFromUsb<uint16_t>();
 
-  xil_printf("reading @%04x=xx (%d)\r\n");
+  xil_printf("reading 8bit @%04x=xx (%d)\r\n", (uint32_t)address, (uint32_t)size);
 
   resp.write(source);
   resp.write(0);
@@ -112,17 +112,49 @@ static void process_read_stream_8(uint8_t source) {
   }
 }
 
+static void process_read_stream_32(uint8_t source) {
+  uint16_t address = readFromUsb<uint16_t>();
+  uint16_t size = readFromUsb<uint16_t>();
+
+  xil_printf("reading 32bit @%04x=xx (%d)\r\n", (uint32_t)address, (uint32_t)size);
+
+  resp.write(source);
+  resp.write(0);
+  while(size--) {
+	  uint32_t v = *(uint32_t *)(baseAddress + address);
+	  resp.write(v);
+  }
+}
+
+static void process_read_modify_write(uint8_t source) {
+  uint16_t address = readFromUsb<uint16_t>();
+  uint32_t mask = readFromUsb<uint32_t>();
+  uint32_t value = readFromUsb<uint32_t>();
+
+  xil_printf("rmw @%04x = %04x mask %04x", (uint32_t)address, (uint32_t)value, (uint32_t)mask);
+
+  uint32_t current = *(uint32_t *)(baseAddress + address);
+  uint32_t updated = (current & ~mask) | (current & mask);
+  *(uint32_t *)(baseAddress + address) = updated;
+
+  resp.write(source);
+  resp.write(0);
+}
+
 enum class cmd : uint8_t {
   write = 0x01,
   read = 0x02,
   write_stream_8 = 0x03,
-  read_stream_8 = 0x04
+  read_stream_8 = 0x04,
+  read_stream_32 = 0x05,
+  read_modify_write = 0x06
 };
 #include <array>
 static void process_cmd(XUsbPs *usb) {
   using func = void (*)(uint8_t);
-  std::array<func, 4> f = {process_write, process_read, process_write_stream_8,
-                           process_read_stream_8};
+  std::array<func, 6> f = {process_write, process_read, process_write_stream_8,
+                           process_read_stream_8, process_read_stream_32,
+						   process_read_modify_write};
   while (1) {
     struct header_t {
       uint8_t source;
